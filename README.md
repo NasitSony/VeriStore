@@ -1,3 +1,9 @@
+
+![CI](https://github.com/NasitSony/VeriStore/actions/workflows/cpp-ci.yml/badge.svg)
+![C++](https://img.shields.io/badge/c++-17-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Last Commit](https://img.shields.io/github/last-commit/NasitSony/VeriStore)
+
 ## 🚀 VeriStore
 A correctness-first replicated storage system in C++
 
