@@ -3,8 +3,7 @@
 ![C++](https://img.shields.io/badge/c++-17-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Last Commit](https://img.shields.io/github/last-commit/NasitSony/VeriStore)
-![Last Commit](https://img.shields.io/github/last-commit/NasitSony/VeriStore)
-[![Stars](https://img.shields.io/github/stars/NasitSony/SmartSearch)](https://github.com/NasitSony/SmartSearch/stargazers)
+[![Stars](https://img.shields.io/github/stars/NasitSony/VeriStore)](https://github.com/NasitSony/VeriStore/stargazers)
 
 
 ## 🚀 VeriStore
