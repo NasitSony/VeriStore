@@ -71,3 +71,6 @@ add_executable(object_store_gc_demo
 target_link_libraries(object_store_gc_demo
   kv_store
 )
+
+add_executable(mvcc_demo src/mvcc_demo.cpp)
+target_link_libraries(mvcc_demo PRIVATE kv_store)

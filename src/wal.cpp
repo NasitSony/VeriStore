@@ -201,13 +201,22 @@ bool Wal::replay_into(KVStore& store, uint64_t& max_seq) {
     }*/
   
    if (h.type == static_cast<uint8_t>(Type::Put)) {
-     store.map_[std::move(key)] = std::move(val);
-     applied++;
-    } else {
-      store.map_.erase(key);
-     \
-      applied++;
-   }
+    store.map_[key] = val;
+
+    store.versions_[key].push_back(
+        Version{h.seq, val}
+    );
+
+    applied++;
+  } else {
+    store.map_.erase(key);
+
+    store.versions_[key].push_back(
+        Version{h.seq, std::nullopt}
+    );
+
+    applied++;
+  }
 
     max_seq = std::max(max_seq, h.seq);
 

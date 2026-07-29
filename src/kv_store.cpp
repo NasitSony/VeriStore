@@ -73,24 +73,25 @@ void KVStore::set_group_commit_every(int n) {
 
  void KVStore::put(std::string key, std::string value) {
   std::unique_lock lock(mu_);
-  if (!opened_) return; // or throw
+  if (!opened_) return;
 
-  uint64_t s = ++seq_;
+  const Timestamp s = ++seq_;
 
-  // 1) WAL first (write-ahead)
+  // WAL first.
   if (!wal_.append_put(s, key, value)) return;
 
-  // 2) Apply to in-memory state immediately
-  map_[key] = value;  // keep it simple and correct
+  // Latest-value view.
+  map_[key] = value;
 
-  // 3) Durability boundary: flush periodically (group commit)
+  // MVCC history: oldest to newest.
+  versions_[key].push_back(
+      Version{s, value}
+  );
 
+  // Periodic durability boundary.
   if ((s % group_commit_every_) == 0) {
-      if (!wal_.flush()) return;
-  }
-  /*if ((s % 5) == 0) {
     if (!wal_.flush()) return;
-  }*/
+  }
 }
 
 std::optional<std::string> KVStore::get(const std::string& key) const {
@@ -100,17 +101,56 @@ std::optional<std::string> KVStore::get(const std::string& key) const {
   return it->second;
 }
 
+std::optional<std::string>
+KVStore::get_at(const std::string& key,
+                Timestamp read_timestamp) const {
+  std::shared_lock lock(mu_);
+
+  auto it = versions_.find(key);
+  if (it == versions_.end()) {
+    return std::nullopt;
+  }
+
+  const auto& versions = it->second;
+
+  // Stored oldest to newest, so search backward.
+  for (auto version_it = versions.rbegin();
+       version_it != versions.rend();
+       ++version_it) {
+    if (version_it->timestamp <= read_timestamp) {
+      return version_it->value;
+    }
+  }
+
+  return std::nullopt;
+}
+
 bool KVStore::del(const std::string& key) {
   std::unique_lock lock(mu_);
-  if (!opened_) return false; // or throw
+  if (!opened_) return false;
 
-  uint64_t s = ++seq_;
-  if (!wal_.append_del(s, key)) return false;
+  auto current = map_.find(key);
+  if (current == map_.end()) {
+    return false;
+  }
+
+  const Timestamp s = ++seq_;
+
+  if (!wal_.append_del(s, key)) {
+    return false;
+  }
+
+  versions_[key].push_back(
+      Version{s, std::nullopt}
+  );
+
+  map_.erase(current);
 
   if ((s % group_commit_every_) == 0) {
-     if (!wal_.flush()) return false;
+    if (!wal_.flush()) return false;
   }
-  return map_.erase(key) > 0;
+
+  return true;
 }
 
 std::size_t KVStore::size() const {

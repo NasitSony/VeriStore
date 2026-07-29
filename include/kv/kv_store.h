@@ -5,11 +5,24 @@
 #include <unordered_map>
 #include <cstdint>
 #include <iostream>
+#include <vector>
 
 #include "kv/wal.h"
 #include "kv/raft_sm.h"
 
 namespace kv {
+
+using Timestamp = uint64_t;
+
+struct Version {
+  Timestamp timestamp;
+  std::optional<std::string> value;
+
+  bool is_tombstone() const noexcept {
+    return !value.has_value();
+  }
+};
+
 
 class KVStore : public IRaftStateMachine{
 public:
@@ -18,6 +31,12 @@ public:
 
   void put(std::string key, std::string value);
   std::optional<std::string> get(const std::string& key) const;
+
+  std::optional<std::string> get_at(
+      const std::string& key,
+      Timestamp read_timestamp
+  ) const;
+
   bool del(const std::string& key);
   std::size_t size() const;
 
@@ -68,7 +87,14 @@ private:
   }
 
   mutable std::shared_mutex mu_;
+
+  // Existing latest-value representation.
+  // Keep this temporarily so current code continues working.
   std::unordered_map<std::string, std::string> map_;
+
+  // New MVCC history.
+  // Versions will be stored oldest-to-newest.
+  std::unordered_map<std::string, std::vector<Version>> versions_;
 
   Wal wal_;
   uint64_t seq_{0};
