@@ -4,6 +4,8 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <algorithm>
+
 namespace kv {
 
 /*bool KVStore::open(const std::string& wal_path) {
@@ -230,19 +232,97 @@ bool KVStore::checkpoint(const std::string& snapshot_path,
 bool KVStore::load_from_file_unlocked(const std::string& path) {
   std::ifstream in(path);
   if (!in) return false;
-  std::string k, v;
-  while (in >> k >> v) {
-    map_[k] = v;
+
+  map_.clear();
+  versions_.clear();
+
+  std::string line;
+
+  while (std::getline(in, line)) {
+    if (line.empty()) continue;
+
+    const std::size_t first_tab = line.find('\t');
+    const std::size_t second_tab =
+        first_tab == std::string::npos
+            ? std::string::npos
+            : line.find('\t', first_tab + 1);
+    const std::size_t third_tab =
+        second_tab == std::string::npos
+            ? std::string::npos
+            : line.find('\t', second_tab + 1);
+
+    if (first_tab == std::string::npos ||
+        second_tab == std::string::npos) {
+      return false;
+    }
+
+    const std::string key = line.substr(0, first_tab);
+    const std::string timestamp_text =
+        line.substr(first_tab + 1, second_tab - first_tab - 1);
+
+    const std::string type =
+        third_tab == std::string::npos
+            ? line.substr(second_tab + 1)
+            : line.substr(second_tab + 1,
+                          third_tab - second_tab - 1);
+
+    Timestamp timestamp = 0;
+
+    try {
+      timestamp = std::stoull(timestamp_text);
+    } catch (...) {
+      return false;
+    }
+
+    if (type == "P") {
+      if (third_tab == std::string::npos) {
+        return false;
+      }
+
+      const std::string value = line.substr(third_tab + 1);
+
+      versions_[key].push_back(
+          Version{timestamp, value}
+      );
+
+      map_[key] = value;
+    } else if (type == "D") {
+      versions_[key].push_back(
+          Version{timestamp, std::nullopt}
+      );
+
+      map_.erase(key);
+    } else {
+      return false;
+    }
+
+    seq_ = std::max(seq_, timestamp);
   }
+
   return true;
 }
 
 bool KVStore::save_to_file_unlocked(const std::string& path) const {
   std::ofstream out(path);
   if (!out) return false;
-  for (const auto& [k, v] : map_) {
-    out << k << '\t' << v << '\n';
+
+  for (const auto& [key, versions] : versions_) {
+    for (const auto& version : versions) {
+      if (version.value.has_value()) {
+        out << key << '\t'
+            << version.timestamp << '\t'
+            << 'P' << '\t'
+            << *version.value << '\n';
+      } else {
+        out << key << '\t'
+            << version.timestamp << '\t'
+            << 'D' << '\n';
+      }
+
+      if (!out) return false;
+    }
   }
+
   return true;
 }
 
