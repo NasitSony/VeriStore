@@ -23,3 +23,5 @@ __MACOSX/
 .idea/
 *.swp
 *.swo
+
+.DS_Store
