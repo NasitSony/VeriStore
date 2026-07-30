@@ -11,6 +11,7 @@ add_library(kv_store
   src/raft.cpp
   src/raft_transport.cpp
   src/object_store.cpp
+  src/memtable.cpp
 )
 target_include_directories(kv_store PUBLIC include)
 

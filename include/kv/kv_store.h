@@ -9,19 +9,10 @@
 
 #include "kv/wal.h"
 #include "kv/raft_sm.h"
+#include "kv/version.h"
+#include "kv/memtable.h"
 
 namespace kv {
-
-using Timestamp = uint64_t;
-
-struct Version {
-  Timestamp timestamp;
-  std::optional<std::string> value;
-
-  bool is_tombstone() const noexcept {
-    return !value.has_value();
-  }
-};
 
 
 class KVStore : public IRaftStateMachine{
@@ -63,6 +54,7 @@ public:
 
 private:
   friend class Wal;
+  
   bool load_from_file_unlocked(const std::string& path);
   bool save_to_file_unlocked(const std::string& path) const;
   int group_commit_every_ = 5;
@@ -94,7 +86,9 @@ private:
 
   // New MVCC history.
   // Versions will be stored oldest-to-newest.
-  std::unordered_map<std::string, std::vector<Version>> versions_;
+  // std::unordered_map<std::string, std::vector<Version>> versions_;
+ 
+  MemTable memtable_;
 
   Wal wal_;
   uint64_t seq_{0};

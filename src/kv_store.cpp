@@ -86,9 +86,11 @@ void KVStore::set_group_commit_every(int n) {
   map_[key] = value;
 
   // MVCC history: oldest to newest.
-  versions_[key].push_back(
+  /*versions_[key].push_back(
       Version{s, value}
-  );
+  );*/
+
+  memtable_.put(key, s, value);
 
   // Periodic durability boundary.
   if ((s % group_commit_every_) == 0) {
@@ -106,25 +108,7 @@ std::optional<std::string> KVStore::get(const std::string& key) const {
 std::optional<std::string>
 KVStore::get_at(const std::string& key,
                 Timestamp read_timestamp) const {
-  std::shared_lock lock(mu_);
-
-  auto it = versions_.find(key);
-  if (it == versions_.end()) {
-    return std::nullopt;
-  }
-
-  const auto& versions = it->second;
-
-  // Stored oldest to newest, so search backward.
-  for (auto version_it = versions.rbegin();
-       version_it != versions.rend();
-       ++version_it) {
-    if (version_it->timestamp <= read_timestamp) {
-      return version_it->value;
-    }
-  }
-
-  return std::nullopt;
+  return memtable_.get_at(key, read_timestamp);
 }
 
 bool KVStore::del(const std::string& key) {
@@ -142,9 +126,11 @@ bool KVStore::del(const std::string& key) {
     return false;
   }
 
-  versions_[key].push_back(
+  /*versions_[key].push_back(
       Version{s, std::nullopt}
-  );
+  );*/
+
+  memtable_.del(key, s);
 
   map_.erase(current);
 
@@ -234,7 +220,7 @@ bool KVStore::load_from_file_unlocked(const std::string& path) {
   if (!in) return false;
 
   map_.clear();
-  versions_.clear();
+  memtable_.clear();
 
   std::string line;
 
@@ -281,17 +267,13 @@ bool KVStore::load_from_file_unlocked(const std::string& path) {
 
       const std::string value = line.substr(third_tab + 1);
 
-      versions_[key].push_back(
-          Version{timestamp, value}
-      );
-
+      memtable_.put(key, timestamp, value);
       map_[key] = value;
-    } else if (type == "D") {
-      versions_[key].push_back(
-          Version{timestamp, std::nullopt}
-      );
 
+    } else if (type == "D") {
+      memtable_.del(key, timestamp);
       map_.erase(key);
+
     } else {
       return false;
     }
@@ -306,7 +288,9 @@ bool KVStore::save_to_file_unlocked(const std::string& path) const {
   std::ofstream out(path);
   if (!out) return false;
 
-  for (const auto& [key, versions] : versions_) {
+  const auto entries = memtable_.snapshot_entries();
+
+  for (const auto& [key, versions] : entries) {
     for (const auto& version : versions) {
       if (version.value.has_value()) {
         out << key << '\t'
