@@ -45,14 +45,14 @@ bool MemTable::empty() const {
 }
 
 
-std::optional<std::string>
+LookupResult
 MemTable::get_at(const std::string& key,
                  Timestamp read_timestamp) const {
   std::shared_lock lock(mu_);
 
   auto it = entries_.find(key);
   if (it == entries_.end()) {
-    return std::nullopt;
+    return LookupResult::not_found();
   }
 
   const auto& versions = it->second;
@@ -61,11 +61,17 @@ MemTable::get_at(const std::string& key,
        version_it != versions.rend();
        ++version_it) {
     if (version_it->timestamp <= read_timestamp) {
-      return version_it->value;
+      if (version_it->is_tombstone()) {
+        return LookupResult::tombstone();
+      }
+
+      return LookupResult::found_value(
+          *version_it->value
+      );
     }
   }
 
-  return std::nullopt;
+  return LookupResult::not_found();
 }
 
 std::size_t MemTable::key_count() const {

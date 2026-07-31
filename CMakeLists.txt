@@ -12,6 +12,8 @@ add_library(kv_store
   src/raft_transport.cpp
   src/object_store.cpp
   src/memtable.cpp
+  src/sstable.cpp
+  src/sstable_reader.cpp
 )
 target_include_directories(kv_store PUBLIC include)
 
@@ -75,3 +77,13 @@ target_link_libraries(object_store_gc_demo
 
 add_executable(mvcc_demo src/mvcc_demo.cpp)
 target_link_libraries(mvcc_demo PRIVATE kv_store)
+
+add_executable(
+    sstable_demo
+    src/sstable_demo.cpp
+)
+
+target_link_libraries(
+    sstable_demo
+    PRIVATE kv_store
+)

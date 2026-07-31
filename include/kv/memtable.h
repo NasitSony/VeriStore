@@ -9,6 +9,7 @@
 #include <cstddef>
 
 #include "kv/version.h"
+#include "kv/lookup_result.h"
 
 namespace kv {
 
@@ -25,9 +26,10 @@ public:
   void del(const std::string& key,
            Timestamp timestamp);
 
-  std::optional<std::string>
-  get_at(const std::string& key,
-         Timestamp read_timestamp) const;
+  LookupResult get_at(
+    const std::string& key,
+    Timestamp read_timestamp) const;
+  
 
   size_t key_count() const;
 

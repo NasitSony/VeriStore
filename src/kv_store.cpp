@@ -113,7 +113,27 @@ std::optional<std::string> KVStore::get(const std::string& key) const {
 std::optional<std::string>
 KVStore::get_at(const std::string& key,
                 Timestamp read_timestamp) const {
-  return memtable_.get_at(key, read_timestamp);
+  const LookupResult mem_result =
+      memtable_.get_at(key, read_timestamp);
+
+  if (mem_result.state == LookupState::Value) {
+    return mem_result.value;
+  }
+
+  if (mem_result.state == LookupState::Tombstone) {
+    return std::nullopt;
+  }
+
+  SSTableReader reader(sstable_path_);
+
+  const LookupResult sstable_result =
+      reader.get_at(key, read_timestamp);
+
+  if (sstable_result.state == LookupState::Value) {
+    return sstable_result.value;
+  }
+
+  return std::nullopt;
 }
 
 bool KVStore::del(const std::string& key) {

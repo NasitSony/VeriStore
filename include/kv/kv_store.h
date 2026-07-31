@@ -11,6 +11,9 @@
 #include "kv/raft_sm.h"
 #include "kv/version.h"
 #include "kv/memtable.h"
+#include "kv/sstable_reader.h"
+#include "kv/lookup_result.h"
+
 
 namespace kv {
 
@@ -57,9 +60,10 @@ private:
   
   bool load_from_file_unlocked(const std::string& path);
   bool save_to_file_unlocked(const std::string& path) const;
+  std::string sstable_path_{"data.sst"};
   int group_commit_every_ = 5;
   static constexpr size_t kMemTableFlushThresholdBytes =
-   128;// 4 * 1024 * 1024;
+    4 * 1024 * 1024;
 
   
 
