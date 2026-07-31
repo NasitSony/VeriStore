@@ -5,24 +5,45 @@
 
 namespace kv {
 
-void MemTable::put(std::string key,
+void MemTable::put(const std::string& key,
                    Timestamp timestamp,
-                   std::string value) {
+                   const std::string& value) {
   std::unique_lock lock(mu_);
 
-  entries_[std::move(key)].push_back(
-      Version{timestamp, std::move(value)}
+  approximate_size_bytes_ +=
+      key.size() +
+      value.size() +
+      sizeof(Timestamp) +
+      sizeof(Version);
+
+  entries_[key].push_back(
+      Version{timestamp, value}
   );
 }
 
-void MemTable::del(std::string key,
+void MemTable::del(const std::string& key,
                    Timestamp timestamp) {
   std::unique_lock lock(mu_);
 
-  entries_[std::move(key)].push_back(
+  approximate_size_bytes_ +=
+      key.size() +
+      sizeof(Timestamp) +
+      sizeof(Version);
+
+  entries_[key].push_back(
       Version{timestamp, std::nullopt}
   );
 }
+size_t MemTable::approximate_size_bytes() const {
+  std::shared_lock lock(mu_);
+  return approximate_size_bytes_;
+}
+
+bool MemTable::empty() const {
+  std::shared_lock lock(mu_);
+  return entries_.empty();
+}
+
 
 std::optional<std::string>
 MemTable::get_at(const std::string& key,
@@ -54,7 +75,9 @@ std::size_t MemTable::key_count() const {
 
 void MemTable::clear() {
   std::unique_lock lock(mu_);
+
   entries_.clear();
+  approximate_size_bytes_ = 0;
 }
 
 MemTable::Entries MemTable::snapshot_entries() const {

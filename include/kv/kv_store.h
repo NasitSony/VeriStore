@@ -58,6 +58,8 @@ private:
   bool load_from_file_unlocked(const std::string& path);
   bool save_to_file_unlocked(const std::string& path) const;
   int group_commit_every_ = 5;
+  static constexpr size_t kMemTableFlushThresholdBytes =
+   128;// 4 * 1024 * 1024;
 
   
 

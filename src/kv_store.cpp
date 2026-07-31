@@ -92,6 +92,11 @@ void KVStore::set_group_commit_every(int n) {
 
   memtable_.put(key, s, value);
 
+  if (memtable_.approximate_size_bytes() >=
+        kMemTableFlushThresholdBytes) {
+        std::cout << "[memtable] flush threshold reached\n";
+    }
+
   // Periodic durability boundary.
   if ((s % group_commit_every_) == 0) {
     if (!wal_.flush()) return;
@@ -113,7 +118,10 @@ KVStore::get_at(const std::string& key,
 
 bool KVStore::del(const std::string& key) {
   std::unique_lock lock(mu_);
-  if (!opened_) return false;
+
+  if (!opened_) {
+    return false;
+  }
 
   auto current = map_.find(key);
   if (current == map_.end()) {
@@ -126,16 +134,18 @@ bool KVStore::del(const std::string& key) {
     return false;
   }
 
-  /*versions_[key].push_back(
-      Version{s, std::nullopt}
-  );*/
-
   memtable_.del(key, s);
-
   map_.erase(current);
 
+  if (memtable_.approximate_size_bytes() >=
+      kMemTableFlushThresholdBytes) {
+    std::cout << "[memtable] flush threshold reached\n";
+  }
+
   if ((s % group_commit_every_) == 0) {
-    if (!wal_.flush()) return false;
+    if (!wal_.flush()) {
+      return false;
+    }
   }
 
   return true;
