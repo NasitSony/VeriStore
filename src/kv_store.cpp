@@ -6,6 +6,10 @@
 #include <string>
 #include <algorithm>
 
+#include "kv/sstable.h"
+#include "kv/sstable_reader.h"
+
+
 namespace kv {
 
 /*bool KVStore::open(const std::string& wal_path) {
@@ -59,6 +63,44 @@ void KVStore::set_group_commit_every(int n) {
   std::unique_lock lock(mu_);
   group_commit_every_ = (n <= 0) ? 1 : n;
 }
+
+
+bool KVStore::maybe_flush_memtable_unlocked() {
+  if (memtable_.approximate_size_bytes() <
+      kMemTableFlushThresholdBytes) {
+    return true;
+  }
+
+  const auto entries = memtable_.snapshot_entries();
+
+  if (entries.empty()) {
+    return true;
+  }
+
+  const std::string path =
+      "/tmp/veristore-" +
+      std::to_string(next_sstable_id_) +
+      ".sst";
+
+  if (!SSTableWriter::write(path, entries)) {
+    std::cerr
+        << "[lsm] failed to flush MemTable to "
+        << path << '\n';
+
+    return false;
+  }
+
+  sstable_paths_.push_back(path);
+  ++next_sstable_id_;
+
+  memtable_.clear();
+
+  std::cout
+      << "[lsm] flushed MemTable to "
+      << path << '\n';
+
+  return true;
+}
 /*void KVStore::put(std::string key, std::string value) {
   std::unique_lock lock(mu_);
   if (!opened_) return; // or throw
@@ -92,10 +134,14 @@ void KVStore::set_group_commit_every(int n) {
 
   memtable_.put(key, s, value);
 
-  if (memtable_.approximate_size_bytes() >=
+  if (!maybe_flush_memtable_unlocked()) {
+    return;
+  }
+
+  /*if (memtable_.approximate_size_bytes() >=
         kMemTableFlushThresholdBytes) {
         std::cout << "[memtable] flush threshold reached\n";
-    }
+    }*/
 
   // Periodic durability boundary.
   if ((s % group_commit_every_) == 0) {
@@ -124,13 +170,21 @@ KVStore::get_at(const std::string& key,
     return std::nullopt;
   }
 
-  SSTableReader reader(sstable_path_);
+  for (auto it = sstable_paths_.rbegin();
+       it != sstable_paths_.rend();
+       ++it) {
+    SSTableReader reader(*it);
 
-  const LookupResult sstable_result =
-      reader.get_at(key, read_timestamp);
+    const LookupResult result =
+        reader.get_at(key, read_timestamp);
 
-  if (sstable_result.state == LookupState::Value) {
-    return sstable_result.value;
+    if (result.state == LookupState::Value) {
+      return result.value;
+    }
+
+    if (result.state == LookupState::Tombstone) {
+      return std::nullopt;
+    }
   }
 
   return std::nullopt;
@@ -157,9 +211,8 @@ bool KVStore::del(const std::string& key) {
   memtable_.del(key, s);
   map_.erase(current);
 
-  if (memtable_.approximate_size_bytes() >=
-      kMemTableFlushThresholdBytes) {
-    std::cout << "[memtable] flush threshold reached\n";
+  if (!maybe_flush_memtable_unlocked()) {
+    return false;
   }
 
   if ((s % group_commit_every_) == 0) {

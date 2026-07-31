@@ -13,6 +13,9 @@
 #include "kv/memtable.h"
 #include "kv/sstable_reader.h"
 #include "kv/lookup_result.h"
+#include "kv/sstable_reader.h"
+
+#include <utility>
 
 
 namespace kv {
@@ -57,47 +60,26 @@ public:
 
 private:
   friend class Wal;
-  
+
   bool load_from_file_unlocked(const std::string& path);
   bool save_to_file_unlocked(const std::string& path) const;
-  std::string sstable_path_{"data.sst"};
-  int group_commit_every_ = 5;
-  static constexpr size_t kMemTableFlushThresholdBytes =
-    4 * 1024 * 1024;
 
-  
-
-  // Used ONLY during WAL replay to avoid re-logging.
-  void apply_put_no_log(std::string key, std::string value) {
-    map_[std::move(key)] = std::move(value);
-  }
-  void apply_del_no_log(const std::string& key) {
-    map_.erase(key);
-  }
-
-  // Used ONLY during KVStore::open() while holding mu_.
-  void apply_put_no_log_unlocked(std::string key, std::string value) {
-    std::cerr << "[apply] PUT " << key << "=" << value << "\n";
-    map_[std::move(key)] = std::move(value);
-  }
-  void apply_del_no_log_unlocked(const std::string& key) {
-    map_.erase(key);
-  }
+  bool maybe_flush_memtable_unlocked();
 
   mutable std::shared_mutex mu_;
 
-  // Existing latest-value representation.
-  // Keep this temporarily so current code continues working.
   std::unordered_map<std::string, std::string> map_;
-
-  // New MVCC history.
-  // Versions will be stored oldest-to-newest.
-  // std::unordered_map<std::string, std::vector<Version>> versions_;
- 
   MemTable memtable_;
+
+  std::vector<std::string> sstable_paths_;
+  uint64_t next_sstable_id_{0};
+
+  static constexpr std::size_t kMemTableFlushThresholdBytes =
+      4 * 1024 * 1024;
 
   Wal wal_;
   uint64_t seq_{0};
+  int group_commit_every_{5};
   bool opened_{false};
 
 };
