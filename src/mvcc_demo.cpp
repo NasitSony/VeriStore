@@ -33,6 +33,8 @@ int main() {
     store.put("name", "version-2");  // timestamp 2
     store.del("name");               // timestamp 3
 
+    
+
     print_value("Before restart at ts=1", store.get_at("name", 1));
     print_value("Before restart at ts=2", store.get_at("name", 2));
     print_value("Before restart at ts=3", store.get_at("name", 3));

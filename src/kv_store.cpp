@@ -56,6 +56,19 @@ bool KVStore::open(const std::string& wal_path) {
   opened_ = true;
   std::cerr << "[open] done (seq=" << seq_ << ")\n";
   //std::cerr << "[open] map size after replay = " << map_.size() << "\n";
+
+  if (!manifest_.open(manifest_path_)) {
+    return false;
+  }
+
+  sstable_paths_ = manifest_.load_sstables();
+
+  std::cout << "[manifest] loaded "
+          << sstable_paths_.size()
+          << " SSTables\n";
+
+  next_sstable_id_ =
+      static_cast<uint64_t>(sstable_paths_.size());
   return true;
 }
 
@@ -87,6 +100,11 @@ bool KVStore::maybe_flush_memtable_unlocked() {
         << "[lsm] failed to flush MemTable to "
         << path << '\n';
 
+    return false;
+  }
+
+  if (!manifest_.append_sstable(path)) {
+    std::remove(path.c_str());
     return false;
   }
 

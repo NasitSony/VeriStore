@@ -14,6 +14,7 @@
 #include "kv/sstable_reader.h"
 #include "kv/lookup_result.h"
 #include "kv/sstable_reader.h"
+#include "kv/manifest.h"
 
 #include <utility>
 
@@ -73,6 +74,9 @@ private:
 
   std::vector<std::string> sstable_paths_;
   uint64_t next_sstable_id_{0};
+
+  Manifest manifest_;
+  std::string manifest_path_{"/tmp/veristore-MANIFEST"};
 
   static constexpr std::size_t kMemTableFlushThresholdBytes =
       4 * 1024 * 1024;

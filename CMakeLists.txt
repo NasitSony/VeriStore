@@ -14,6 +14,7 @@ add_library(kv_store
   src/memtable.cpp
   src/sstable.cpp
   src/sstable_reader.cpp
+  src/manifest.cpp
 )
 target_include_directories(kv_store PUBLIC include)
 
