@@ -115,7 +115,7 @@ bool KVStore::maybe_flush_memtable_unlocked() {
   sstable_paths_.push_back(path);
   ++next_sstable_id_;
 
-  immutable_memtable_.reset();
+ // immutable_memtable_.reset();
 
   std::cout
     << "[lsm] queued immutable MemTable flush to "
@@ -131,6 +131,8 @@ void KVStore::drain_completed_flushes_unlocked() {
     sstable_paths_.push_back(
         std::move(completion.sstable_path)
     );
+
+    immutable_memtable_.reset();
   }
 }
 
