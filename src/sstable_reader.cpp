@@ -6,8 +6,12 @@
 
 namespace kv {
 
-SSTableReader::SSTableReader(std::string path)
-    : path_(std::move(path)) {}
+SSTableReader::SSTableReader(
+    std::string path,
+    std::size_t index_stride)
+    : path_(std::move(path)),
+      index_(index_stride),
+      index_ready_(index_.build(path_)) {}
 
 LookupResult SSTableReader::get_at(
     const std::string& key,
@@ -17,6 +21,19 @@ LookupResult SSTableReader::get_at(
   if (!in) {
     return LookupResult::not_found();
   }
+
+  if (index_ready_) {
+  const auto offset =
+      index_.find_start_offset(key);
+
+  if (offset.has_value()) {
+    in.seekg(*offset);
+
+    if (!in) {
+      return LookupResult::not_found();
+    }
+  }
+}
 
   Timestamp best_timestamp = 0;
   bool found = false;
@@ -32,6 +49,14 @@ LookupResult SSTableReader::get_at(
     char type;
 
     if (!(row >> stored_key >> timestamp >> type)) {
+      continue;
+    }
+
+    if (stored_key > key) {
+        break;
+    }
+
+    if (stored_key < key) {
       continue;
     }
 
