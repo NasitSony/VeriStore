@@ -30,6 +30,8 @@ public:
   void put(std::string key, std::string value);
   std::optional<std::string> get(const std::string& key) const;
 
+  
+
   std::optional<std::string> get_at(
       const std::string& key,
       Timestamp read_timestamp
@@ -71,6 +73,8 @@ private:
 
   std::unordered_map<std::string, std::string> map_;
   MemTable memtable_;
+
+  std::optional<MemTable::Entries> immutable_memtable_;
 
   std::vector<std::string> sstable_paths_;
   uint64_t next_sstable_id_{0};

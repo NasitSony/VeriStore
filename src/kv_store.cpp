@@ -84,9 +84,15 @@ bool KVStore::maybe_flush_memtable_unlocked() {
     return true;
   }
 
-  const auto entries = memtable_.snapshot_entries();
+  if (immutable_memtable_.has_value()) {
+    // Synchronous version should never normally reach this.
+    return false;
+  }
 
-  if (entries.empty()) {
+  immutable_memtable_ = memtable_.take_entries();
+
+  if (immutable_memtable_->empty()) {
+    immutable_memtable_.reset();
     return true;
   }
 
@@ -95,9 +101,11 @@ bool KVStore::maybe_flush_memtable_unlocked() {
       std::to_string(next_sstable_id_) +
       ".sst";
 
-  if (!SSTableWriter::write(path, entries)) {
+  if (!SSTableWriter::write(
+          path,
+          *immutable_memtable_)) {
     std::cerr
-        << "[lsm] failed to flush MemTable to "
+        << "[lsm] failed to flush immutable MemTable to "
         << path << '\n';
 
     return false;
@@ -111,13 +119,42 @@ bool KVStore::maybe_flush_memtable_unlocked() {
   sstable_paths_.push_back(path);
   ++next_sstable_id_;
 
-  memtable_.clear();
+  immutable_memtable_.reset();
 
   std::cout
-      << "[lsm] flushed MemTable to "
+      << "[lsm] flushed immutable MemTable to "
       << path << '\n';
 
   return true;
+}
+
+static LookupResult lookup_entries(
+    const MemTable::Entries& entries,
+    const std::string& key,
+    Timestamp read_timestamp) {
+  auto it = entries.find(key);
+
+  if (it == entries.end()) {
+    return LookupResult::not_found();
+  }
+
+  const auto& versions = it->second;
+
+  for (auto version_it = versions.rbegin();
+       version_it != versions.rend();
+       ++version_it) {
+    if (version_it->timestamp <= read_timestamp) {
+      if (version_it->is_tombstone()) {
+        return LookupResult::tombstone();
+      }
+
+      return LookupResult::found_value(
+          *version_it->value
+      );
+    }
+  }
+
+  return LookupResult::not_found();
 }
 /*void KVStore::put(std::string key, std::string value) {
   std::unique_lock lock(mu_);
@@ -186,6 +223,23 @@ KVStore::get_at(const std::string& key,
 
   if (mem_result.state == LookupState::Tombstone) {
     return std::nullopt;
+  }
+
+  if (immutable_memtable_.has_value()) {
+    const LookupResult immutable_result =
+        lookup_entries(
+            *immutable_memtable_,
+            key,
+            read_timestamp
+        );
+
+    if (immutable_result.state == LookupState::Value) {
+      return immutable_result.value;
+    }
+
+    if (immutable_result.state == LookupState::Tombstone) {
+      return std::nullopt;
+    }
   }
 
   for (auto it = sstable_paths_.rbegin();

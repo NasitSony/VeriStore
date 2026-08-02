@@ -44,6 +44,16 @@ bool MemTable::empty() const {
   return entries_.empty();
 }
 
+MemTable::Entries MemTable::take_entries() {
+  std::unique_lock lock(mu_);
+
+  Entries taken = std::move(entries_);
+
+  entries_.clear();
+  approximate_size_bytes_ = 0;
+
+  return taken;
+}
 
 LookupResult
 MemTable::get_at(const std::string& key,

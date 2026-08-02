@@ -40,11 +40,15 @@ public:
   void clear();
 
   Entries snapshot_entries() const;
+
+  Entries take_entries();
   
 
 private:
   mutable std::shared_mutex mu_;
   Entries entries_;
+
+  
 
   // Add it here
   size_t approximate_size_bytes_{0};
