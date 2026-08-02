@@ -4,6 +4,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <algorithm>
 
 namespace kv {
 
@@ -19,6 +20,14 @@ bool Manifest::append_sstable(
     const std::string& sstable_path) {
   if (path_.empty()) {
     return false;
+  }
+
+  const auto existing = load_sstables();
+
+  if (std::find(existing.begin(),
+                existing.end(),
+                sstable_path) != existing.end()) {
+    return true;
   }
 
   std::ofstream out(path_, std::ios::app);

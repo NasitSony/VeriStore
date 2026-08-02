@@ -15,6 +15,7 @@
 #include "kv/lookup_result.h"
 #include "kv/sstable_reader.h"
 #include "kv/manifest.h"
+#include "kv/flush_worker.h"
 
 #include <utility>
 
@@ -77,6 +78,9 @@ private:
   std::optional<MemTable::Entries> immutable_memtable_;
 
   std::vector<std::string> sstable_paths_;
+
+  FlushWorker flush_worker_;
+
   uint64_t next_sstable_id_{0};
 
   Manifest manifest_;

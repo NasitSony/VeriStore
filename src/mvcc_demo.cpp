@@ -34,6 +34,8 @@ int main() {
     store.del("name");               // timestamp 3
 
     
+    store.put("large-1", std::string(100, 'a'));
+    store.put("large-2", std::string(100, 'b'));
 
     print_value("Before restart at ts=1", store.get_at("name", 1));
     print_value("Before restart at ts=2", store.get_at("name", 2));

@@ -63,6 +63,8 @@ bool KVStore::open(const std::string& wal_path) {
 
   sstable_paths_ = manifest_.load_sstables();
 
+  flush_worker_.start();
+
   std::cout << "[manifest] loaded "
           << sstable_paths_.size()
           << " SSTables\n";
@@ -101,18 +103,10 @@ bool KVStore::maybe_flush_memtable_unlocked() {
       std::to_string(next_sstable_id_) +
       ".sst";
 
-  if (!SSTableWriter::write(
+  if (!flush_worker_.enqueue(
           path,
-          *immutable_memtable_)) {
-    std::cerr
-        << "[lsm] failed to flush immutable MemTable to "
-        << path << '\n';
-
-    return false;
-  }
-
-  if (!manifest_.append_sstable(path)) {
-    std::remove(path.c_str());
+          manifest_path_,
+          std::move(*immutable_memtable_))) {
     return false;
   }
 
@@ -122,8 +116,8 @@ bool KVStore::maybe_flush_memtable_unlocked() {
   immutable_memtable_.reset();
 
   std::cout
-      << "[lsm] flushed immutable MemTable to "
-      << path << '\n';
+    << "[lsm] queued immutable MemTable flush to "
+    << path << '\n';
 
   return true;
 }
