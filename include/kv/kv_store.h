@@ -36,7 +36,7 @@ public:
   std::optional<std::string> get_at(
       const std::string& key,
       Timestamp read_timestamp
-  ) const;
+  );
 
   bool del(const std::string& key);
   std::size_t size() const;
@@ -68,6 +68,7 @@ private:
   bool load_from_file_unlocked(const std::string& path);
   bool save_to_file_unlocked(const std::string& path) const;
 
+  void drain_completed_flushes_unlocked();
   bool maybe_flush_memtable_unlocked();
 
   mutable std::shared_mutex mu_;

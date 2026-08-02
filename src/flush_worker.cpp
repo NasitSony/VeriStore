@@ -116,11 +116,35 @@ void FlushWorker::run() {
     continue;
     }
 
+    {
+    std::lock_guard<std::mutex> lock(mu_);
+
+        completions_.push(
+            FlushCompletion{task.sstable_path}
+        );
+    }
+
     std::cout
         << "[flush-worker] wrote "
         << task.sstable_path
         << '\n';
     }
+
+    
+}
+
+bool FlushWorker::poll_completion(
+    FlushCompletion& completion) {
+  std::lock_guard<std::mutex> lock(mu_);
+
+  if (completions_.empty()) {
+    return false;
+  }
+
+  completion = std::move(completions_.front());
+  completions_.pop();
+
+  return true;
 }
 
 } // namespace kv

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "kv/memtable.h"
+#include "kv/flush_completion.h"
 
 #include <condition_variable>
 #include <cstdint>
@@ -37,16 +38,20 @@ public:
 
   std::size_t pending_tasks() const;
 
+  bool poll_completion(FlushCompletion& completion);
+
 private:
   void run();
 
   mutable std::mutex mu_;
   std::condition_variable cv_;
   std::queue<FlushTask> tasks_;
+  std::queue<FlushCompletion> completions_;
 
   std::thread worker_;
   bool started_{false};
   bool stopping_{false};
+  
 };
 
 } // namespace kv

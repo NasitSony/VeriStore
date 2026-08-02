@@ -5,9 +5,11 @@
 #include <sstream>
 #include <string>
 #include <algorithm>
+#include <utility>
 
 #include "kv/sstable.h"
 #include "kv/sstable_reader.h"
+#include "kv/flush_completion.h"
 
 
 namespace kv {
@@ -122,6 +124,16 @@ bool KVStore::maybe_flush_memtable_unlocked() {
   return true;
 }
 
+void KVStore::drain_completed_flushes_unlocked() {
+  FlushCompletion completion;
+
+  while (flush_worker_.poll_completion(completion)) {
+    sstable_paths_.push_back(
+        std::move(completion.sstable_path)
+    );
+  }
+}
+
 static LookupResult lookup_entries(
     const MemTable::Entries& entries,
     const std::string& key,
@@ -207,7 +219,11 @@ std::optional<std::string> KVStore::get(const std::string& key) const {
 
 std::optional<std::string>
 KVStore::get_at(const std::string& key,
-                Timestamp read_timestamp) const {
+                Timestamp read_timestamp) {
+  std::unique_lock lock(mu_);
+
+  drain_completed_flushes_unlocked();
+
   const LookupResult mem_result =
       memtable_.get_at(key, read_timestamp);
 
