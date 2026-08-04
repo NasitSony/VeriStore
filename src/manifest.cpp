@@ -5,6 +5,7 @@
 #include <utility>
 #include <vector>
 #include <algorithm>
+#include <cstdio>
 
 namespace kv {
 
@@ -63,6 +64,44 @@ Manifest::load_sstables() const {
   }
 
   return paths;
+}
+
+
+bool Manifest::replace_sstables(
+    const std::vector<std::string>& sstable_paths) {
+  if (path_.empty()) {
+    return false;
+  }
+
+  const std::string temp_path = path_ + ".tmp";
+
+  {
+    std::ofstream out(temp_path, std::ios::trunc);
+    if (!out) {
+      return false;
+    }
+
+    for (const auto& path : sstable_paths) {
+      out << path << '\n';
+
+      if (!out) {
+        return false;
+      }
+    }
+
+    out.flush();
+
+    if (!out) {
+      return false;
+    }
+  }
+
+  if (std::rename(temp_path.c_str(), path_.c_str()) != 0) {
+    std::remove(temp_path.c_str());
+    return false;
+  }
+
+  return true;
 }
 
 } // namespace kv

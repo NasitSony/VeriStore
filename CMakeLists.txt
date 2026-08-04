@@ -17,6 +17,7 @@ add_library(kv_store
   src/manifest.cpp
   src/flush_worker.cpp
   src/sstable_index.cpp
+  src/compactor.cpp
 )
 target_include_directories(kv_store PUBLIC include)
 
@@ -108,5 +109,15 @@ add_executable(
 
 target_link_libraries(
     sstable_index_demo
+    PRIVATE kv_store
+)
+
+add_executable(
+    compactor_demo
+    src/compactor_demo.cpp
+)
+
+target_link_libraries(
+    compactor_demo
     PRIVATE kv_store
 )

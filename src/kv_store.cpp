@@ -6,10 +6,13 @@
 #include <string>
 #include <algorithm>
 #include <utility>
+#include <cstdint>
+#include <string>
 
 #include "kv/sstable.h"
 #include "kv/sstable_reader.h"
 #include "kv/flush_completion.h"
+#include "kv/compactor.h"
 
 
 namespace kv {
@@ -38,6 +41,26 @@ namespace kv {
 //int group_commit_every_ = 5;   // default
 
 
+static uint64_t extract_sstable_id(
+    const std::string& path) {
+    const std::size_t dash = path.find_last_of('-');
+    const std::size_t dot = path.rfind(".sst");
+
+    if (dash == std::string::npos ||
+        dot == std::string::npos ||
+        dash + 1 >= dot) {
+      return 0;
+    }
+
+    try {
+      return std::stoull(
+          path.substr(dash + 1, dot - dash - 1)
+      );
+    } catch (...) {
+      return 0;
+    }
+}
+
 bool KVStore::open(const std::string& wal_path) {
   std::unique_lock lock(mu_);
   //std::cerr << "[open] start\n";
@@ -65,6 +88,20 @@ bool KVStore::open(const std::string& wal_path) {
 
   sstable_paths_ = manifest_.load_sstables();
 
+  next_sstable_id_ = 0;
+
+  for (const auto& path : sstable_paths_) {
+    next_sstable_id_ =
+        std::max(
+            next_sstable_id_,
+            extract_sstable_id(path) + 1
+        );
+  }
+
+  if (!maybe_compact_sstables_unlocked()) {
+    std::cerr << "[compaction] startup compaction failed\n";
+  }
+
   flush_worker_.start();
 
   std::cout << "[manifest] loaded "
@@ -89,7 +126,6 @@ bool KVStore::maybe_flush_memtable_unlocked() {
   }
 
   if (immutable_memtable_.has_value()) {
-    // Synchronous version should never normally reach this.
     return false;
   }
 
@@ -102,37 +138,56 @@ bool KVStore::maybe_flush_memtable_unlocked() {
 
   const std::string path =
       "/tmp/veristore-" +
-      std::to_string(next_sstable_id_) +
+      std::to_string(next_sstable_id_++) +
       ".sst";
 
   if (!flush_worker_.enqueue(
           path,
           manifest_path_,
           std::move(*immutable_memtable_))) {
+    // The task was not queued, so retain the immutable data.
     return false;
   }
 
-  sstable_paths_.push_back(path);
-  ++next_sstable_id_;
-
- // immutable_memtable_.reset();
-
   std::cout
-    << "[lsm] queued immutable MemTable flush to "
-    << path << '\n';
+      << "[lsm] queued immutable MemTable flush to "
+      << path << '\n';
 
   return true;
 }
 
 void KVStore::drain_completed_flushes_unlocked() {
   FlushCompletion completion;
+  bool added_new_sstable = false;
 
   while (flush_worker_.poll_completion(completion)) {
-    sstable_paths_.push_back(
-        std::move(completion.sstable_path)
-    );
+    const auto existing =
+        std::find(
+            sstable_paths_.begin(),
+            sstable_paths_.end(),
+            completion.sstable_path
+        );
+
+    if (existing == sstable_paths_.end()) {
+      sstable_paths_.push_back(
+          std::move(completion.sstable_path)
+      );
+
+      added_new_sstable = true;
+    }
 
     immutable_memtable_.reset();
+  }
+
+  if (added_new_sstable) {
+    std::cout
+        << "[compaction] SSTable count="
+        << sstable_paths_.size()
+        << '\n';
+
+    if (!maybe_compact_sstables_unlocked()) {
+      std::cerr << "[compaction] failed\n";
+    }
   }
 }
 
@@ -514,5 +569,88 @@ KVStore::list_keys_with_prefix(const std::string& prefix) const {
 
   return result;
 }
+
+bool KVStore::maybe_compact_sstables_unlocked() {
+  if (sstable_paths_.size() < kCompactionTrigger) {
+    return true;
+  }
+
+  const std::string first = sstable_paths_[0];
+  const std::string second = sstable_paths_[1];
+
+  if (first == second) {
+    std::cerr
+        << "[compaction] duplicate SSTable path: "
+        << first << '\n';
+
+    sstable_paths_.erase(sstable_paths_.begin() + 1);
+
+    return manifest_.replace_sstables(sstable_paths_);
+  }
+
+  std::string output;
+
+  do {
+    output =
+        "/tmp/veristore-compacted-" +
+        std::to_string(next_sstable_id_++) +
+        ".sst";
+  } while (
+      std::find(
+          sstable_paths_.begin(),
+          sstable_paths_.end(),
+          output
+      ) != sstable_paths_.end()
+  );
+
+  const std::string temp_output = output + ".tmp";
+
+  if (!Compactor::compact(
+          {first, second},
+          temp_output)) {
+    return false;
+  }
+
+  if (std::rename(
+          temp_output.c_str(),
+          output.c_str()) != 0) {
+    std::remove(temp_output.c_str());
+    return false;
+  }
+
+  std::vector<std::string> updated_paths;
+  updated_paths.reserve(sstable_paths_.size() - 1);
+
+  updated_paths.push_back(output);
+
+  for (std::size_t i = 2;
+       i < sstable_paths_.size();
+       ++i) {
+    updated_paths.push_back(sstable_paths_[i]);
+  }
+
+  if (!manifest_.replace_sstables(updated_paths)) {
+    std::remove(output.c_str());
+    return false;
+  }
+
+  sstable_paths_ = std::move(updated_paths);
+
+  std::remove(first.c_str());
+  std::remove(second.c_str());
+
+  std::cout
+      << "[compaction] merged "
+      << first
+      << " and "
+      << second
+      << " into "
+      << output
+      << '\n';
+
+  return true;
+}
+
+
 
 } // namespace kv

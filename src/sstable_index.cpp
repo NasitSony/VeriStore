@@ -19,10 +19,12 @@ bool SSTableIndex::build(
   index_.clear();
 
   std::size_t record_number = 0;
+  std::string previous_key;
+  std::streampos key_group_offset{};
   std::string line;
 
   while (true) {
-    const std::streampos offset = in.tellg();
+    const std::streampos record_offset = in.tellg();
 
     if (!std::getline(in, line)) {
       break;
@@ -35,8 +37,16 @@ bool SSTableIndex::build(
       continue;
     }
 
+    // Remember where all versions of this key begin.
+    if (record_number == 0 || key != previous_key) {
+      previous_key = key;
+      key_group_offset = record_offset;
+    }
+
     if ((record_number % stride_) == 0) {
-      index_[key] = offset;
+      // Always point to the first version of this key,
+      // never to a later version in the same key group.
+      index_.try_emplace(key, key_group_offset);
     }
 
     ++record_number;

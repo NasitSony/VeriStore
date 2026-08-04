@@ -13,6 +13,9 @@ public:
 
   std::vector<std::string> load_sstables() const;
 
+  bool replace_sstables(
+    const std::vector<std::string>& sstable_paths);
+
 private:
   std::string path_;
 };

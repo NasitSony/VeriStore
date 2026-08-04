@@ -90,6 +90,13 @@ private:
   static constexpr std::size_t kMemTableFlushThresholdBytes =
       4 * 1024 * 1024;
 
+  //static constexpr std::size_t kMemTableFlushThresholdBytes = 128;    
+
+  static constexpr std::size_t kCompactionTrigger = 4;    
+
+
+  bool maybe_compact_sstables_unlocked();    
+
   Wal wal_;
   uint64_t seq_{0};
   int group_commit_every_{5};

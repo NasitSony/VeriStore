@@ -4,6 +4,8 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <chrono>
+#include <thread>
 
 void print_value(const std::string& label,
                  const std::optional<std::string>& value) {
@@ -34,8 +36,30 @@ int main() {
     store.del("name");               // timestamp 3
 
     
-    store.put("large-1", std::string(100, 'a'));
-    store.put("large-2", std::string(100, 'b'));
+    for (int batch = 0; batch < 4; ++batch) {
+        store.put(
+            "large-" + std::to_string(batch * 2),
+            std::string(100, 'a' + batch)
+        );
+
+        store.put(
+            "large-" + std::to_string(batch * 2 + 1),
+            std::string(100, 'a' + batch)
+        );
+
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(100)
+        );
+
+        // A public operation drains completed flushes.
+        (void)store.get_at("name", 3);
+     }
+
+     std::this_thread::sleep_for(
+        std::chrono::milliseconds(200)
+    );
+
+    (void)store.get_at("name", 3);
 
     print_value("Before restart at ts=1", store.get_at("name", 1));
     print_value("Before restart at ts=2", store.get_at("name", 2));
