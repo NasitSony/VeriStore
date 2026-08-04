@@ -18,6 +18,7 @@ add_library(kv_store
   src/flush_worker.cpp
   src/sstable_index.cpp
   src/compactor.cpp
+  src/bloom_filter.cpp
 )
 target_include_directories(kv_store PUBLIC include)
 
@@ -119,5 +120,15 @@ add_executable(
 
 target_link_libraries(
     compactor_demo
+    PRIVATE kv_store
+)
+
+add_executable(
+    bloom_filter_demo
+    src/bloom_filter_demo.cpp
+)
+
+target_link_libraries(
+    bloom_filter_demo
     PRIVATE kv_store
 )
