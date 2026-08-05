@@ -132,3 +132,23 @@ target_link_libraries(
     bloom_filter_demo
     PRIVATE kv_store
 )
+
+add_executable(
+    storage_benchmark
+    src/storage_benchmark.cpp
+)
+
+target_link_libraries(
+    storage_benchmark
+    PRIVATE kv_store
+)
+
+add_executable(
+    sstable_benchmark
+    src/sstable_benchmark.cpp
+)
+
+target_link_libraries(
+    sstable_benchmark
+    PRIVATE kv_store
+)
