@@ -142,12 +142,12 @@ cmake --build build
 
 Additional implementation details are available in the `docs/` directory:
 
-- Architecture
-- LSM Tree
-- MVCC
-- Compaction
-- Benchmarks
-- Roadmap
+- Architecture - [Architecture](docs/architecture.md)
+- LSM Tree - [Benchmarks](docs/benchmarks.md)
+- MVCC - [MVCC and historical reads](docs/mvcc.md)
+- Compaction - [LSM Tree lifecycle](docs/lsm.md)
+- Benchmarks - [Compaction](docs/compaction.md)
+- Roadmap - [Roadmap](docs/roadmap.md)
 
 ---
 

@@ -124,11 +124,11 @@ void FlushWorker::run() {
         );
     }
 
-    std::cout
+    /*std::cout
         << "[flush-worker] wrote "
         << task.sstable_path
         << '\n';
-    }
+    }*/
 
     
 }

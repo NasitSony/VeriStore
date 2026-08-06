@@ -79,7 +79,7 @@ bool KVStore::open(const std::string& wal_path) {
 
   seq_ = max_seq;
   opened_ = true;
-  std::cerr << "[open] done (seq=" << seq_ << ")\n";
+  // std::cerr << "[open] done (seq=" << seq_ << ")\n";
   //std::cerr << "[open] map size after replay = " << map_.size() << "\n";
 
   if (!manifest_.open(manifest_path_)) {
@@ -104,9 +104,9 @@ bool KVStore::open(const std::string& wal_path) {
 
   flush_worker_.start();
 
-  std::cout << "[manifest] loaded "
+  /*std::cout << "[manifest] loaded "
           << sstable_paths_.size()
-          << " SSTables\n";
+          << " SSTables\n";*/
 
   next_sstable_id_ =
       static_cast<uint64_t>(sstable_paths_.size());
@@ -149,9 +149,9 @@ bool KVStore::maybe_flush_memtable_unlocked() {
     return false;
   }
 
-  std::cout
+  /*std::cout
       << "[lsm] queued immutable MemTable flush to "
-      << path << '\n';
+      << path << '\n';*/
 
   return true;
 }
