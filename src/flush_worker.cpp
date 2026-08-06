@@ -95,42 +95,38 @@ void FlushWorker::run() {
     if (!SSTableWriter::write(
             task.sstable_path,
             task.entries)) {
-    std::cerr
-        << "[flush-worker] failed to write "
-        << task.sstable_path
-        << '\n';
-    continue;
+      std::cerr
+          << "[flush-worker] failed to write "
+          << task.sstable_path
+          << '\n';
+      continue;
     }
 
     Manifest manifest;
 
     if (!manifest.open(task.manifest_path)) {
-    std::cerr
-        << "[flush-worker] failed to open manifest\n";
-    continue;
+      std::cerr
+          << "[flush-worker] failed to open manifest\n";
+      continue;
     }
 
-    if (!manifest.append_sstable(task.sstable_path)) {
-    std::cerr
-        << "[flush-worker] failed to append manifest\n";
-    continue;
+    if (!manifest.append_sstable(
+            task.sstable_path)) {
+      std::cerr
+          << "[flush-worker] failed to append manifest\n";
+      continue;
     }
 
     {
-    std::lock_guard<std::mutex> lock(mu_);
+      std::lock_guard<std::mutex> lock(mu_);
 
-        completions_.push(
-            FlushCompletion{task.sstable_path}
-        );
+      completions_.push(
+          FlushCompletion{
+              task.sstable_path
+          }
+      );
     }
-
-    /*std::cout
-        << "[flush-worker] wrote "
-        << task.sstable_path
-        << '\n';
-    }*/
-
-    
+  }
 }
 
 bool FlushWorker::poll_completion(
@@ -141,7 +137,9 @@ bool FlushWorker::poll_completion(
     return false;
   }
 
-  completion = std::move(completions_.front());
+  completion =
+      std::move(completions_.front());
+
   completions_.pop();
 
   return true;
